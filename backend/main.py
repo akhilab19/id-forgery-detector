@@ -1,18 +1,24 @@
 """
 ID Document Forgery Detection Service
-Backend: FastAPI + Anthropic Claude Vision
+Backend: FastAPI + Google Gemini Vision (FREE tier)
 """
 
-import base64
 import json
+import os
 import re
 from datetime import datetime
-from pathlib import Path
 
-import anthropic
+from google import genai
+from google.genai import types
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+
+from dotenv import load_dotenv
+import os
+
+load_dotenv(dotenv_path=".env", encoding="utf-16")
 
 #App Setup 
 app = FastAPI(
@@ -23,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten in production
+    allow_origins=["*"],          
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -119,39 +125,33 @@ def validate_image(file: UploadFile, content: bytes) -> str:
     return ALLOWED_MIME_TYPES[mime]
 
 
-def call_claude_vision(image_b64: str, media_type: str) -> dict:
-    """Send image to Claude and parse the JSON response."""
-    client = anthropic.Anthropic()          # reads ANTHROPIC_API_KEY from env
+def call_gemini_vision(image_bytes: bytes, media_type: str) -> dict:
+    """Send image to Gemini Vision and parse the JSON response."""
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-    message = client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1500,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_b64,
-                        },
-                    },
-                    {
-                        "type": "text",
-                        "text": FORGERY_ANALYSIS_PROMPT,
-                    },
-                ],
-            }
-        ],
+    image_part = types.Part.from_bytes(data=image_bytes, mime_type=media_type)
+    text_part  = types.Part.from_text(text=FORGERY_ANALYSIS_PROMPT)
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[types.Content(role="user", parts=[image_part, text_part])],
+        config=types.GenerateContentConfig(
+            max_output_tokens=8192,              # FIX 1: was 1500, too low causing truncation
+            temperature=0.2,
+            response_mime_type="application/json",  # FIX 2: forces pure JSON output
+        ),
     )
 
-    raw_text = message.content[0].text.strip()
+    raw_text = response.text.strip()
 
-    # Strip markdown code fences if Claude wraps the JSON
+    # Debug: print first 500 chars of response to terminal
+    print("GEMINI RAW RESPONSE (first 500 chars)")
+    print(raw_text[:500], "..." if len(raw_text) > 500 else "")
+    print("================================================")
+
+    # FIX 3: strip markdown fences (belt-and-suspenders)
     raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
-    raw_text = re.sub(r"\s*```$", "", raw_text)
+    raw_text = re.sub(r"\s*```$", "", raw_text.strip())
 
     return json.loads(raw_text)
 
@@ -170,7 +170,7 @@ def health():
 @app.post("/analyze")
 async def analyze_document(file: UploadFile = File(...)):
     """
-    Accept an ID document image, run forgery analysis via Claude Vision,
+    Accept an ID document image, run forgery analysis via Gemini Vision,
     and return a structured risk report.
     """
     content = await file.read()
@@ -178,18 +178,15 @@ async def analyze_document(file: UploadFile = File(...)):
     # 1. Validate
     media_type = validate_image(file, content)
 
-    # 2. Encode
-    image_b64 = base64.standard_b64encode(content).decode("utf-8")
-
-    # 3. Analyse with Claude
+    # 2. Analyse with Gemini Vision (free)
     try:
-        report = call_claude_vision(image_b64, media_type)
+        report = call_gemini_vision(content, media_type)
     except json.JSONDecodeError as exc:
         raise HTTPException(
             status_code=502,
             detail=f"AI model returned malformed JSON: {exc}",
         )
-    except anthropic.APIError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=502,
             detail=f"AI API error: {exc}",
@@ -201,7 +198,7 @@ async def analyze_document(file: UploadFile = File(...)):
         "file_size_kb": round(len(content) / 1024, 1),
         "media_type": media_type,
         "analyzed_at": datetime.utcnow().isoformat() + "Z",
-        "model": "claude-opus-4-5",
+        "model": "gemini-2.5-flash (free tier)",
     }
 
     return JSONResponse(content=report)
