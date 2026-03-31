@@ -1,0 +1,73 @@
+{
+  "document_type": "National ID Card",
+  "overall_risk_level": "MODERATE_RISK",
+  "confidence_score": 68,
+  "summary": "The document exhibits several visual inconsistencies that warrant closer inspection. The photo region appears to have a subtle lighting mismatch with the surrounding card surface, and the date of birth field shows a slightly different background tone compared to adjacent fields. The MRZ zone appears structurally correct, which is a positive sign.",
+  "checks": [
+    {
+      "check_name": "Font Consistency",
+      "status": "WARN",
+      "detail": "The date of birth uses a marginally different font weight than the name field. Both appear to be from the same typeface family, but the weight discrepancy is unusual for a single print job."
+    },
+    {
+      "check_name": "Alignment & Spacing",
+      "status": "PASS",
+      "detail": "All text fields are consistently aligned. No irregular spacing or baseline shifts detected between data fields."
+    },
+    {
+      "check_name": "Photo Integrity",
+      "status": "WARN",
+      "detail": "A faint edge artifact is visible around the photo border. The photo's internal lighting direction (left-to-right) is subtly inconsistent with the holographic overlay's light interaction pattern."
+    },
+    {
+      "check_name": "Document Layout",
+      "status": "PASS",
+      "detail": "Overall layout matches standard national ID card conventions. Security logo placement, field labels, and border styling appear standard."
+    },
+    {
+      "check_name": "Print Quality & Artifacts",
+      "status": "FAIL",
+      "detail": "Elevated JPEG compression artifacts are concentrated around the DOB and expiry date fields compared to the rest of the document. This pattern is atypical of a single original scan and may indicate localized digital editing."
+    },
+    {
+      "check_name": "Security Features",
+      "status": "INCONCLUSIVE",
+      "detail": "A guilloche background pattern is visible but difficult to verify for authenticity from this image resolution. No microprint analysis possible at this zoom level."
+    },
+    {
+      "check_name": "Lighting Coherence",
+      "status": "WARN",
+      "detail": "Minor shadow inconsistency detected near the top-right corner of the photo. The shadow direction does not perfectly match the rest of the document surface."
+    },
+    {
+      "check_name": "Text Field Tampering",
+      "status": "WARN",
+      "detail": "The background directly behind the expiry date appears approximately 4-5% lighter than the same background area behind the ID number. This could indicate localized erasure and re-printing of that field."
+    },
+    {
+      "check_name": "MRZ Zone Validity",
+      "status": "PASS",
+      "detail": "Machine-readable zone characters are evenly spaced and formatted. Line structure matches ICAO 9303 conventions for this document type."
+    }
+  ],
+  "red_flags": [
+    "Concentrated JPEG artifacts around date fields suggest post-production editing",
+    "Subtle background tone difference behind expiry date field",
+    "Photo border shows faint edge artifact inconsistent with original lamination"
+  ],
+  "positive_indicators": [
+    "MRZ zone appears properly structured and consistently printed",
+    "Overall document layout matches known conventions",
+    "Text alignment is consistent across all non-flagged fields",
+    "Guilloche background pattern is present (though unverifiable at this resolution)"
+  ],
+  "analyst_notes": "The document raises moderate concern primarily due to the compression artifact pattern and the subtle background inconsistency in date fields. These are classic signals of a 'date change forgery' where an original valid ID has its dates altered. However, these findings are not conclusive — poor scan quality or JPEG re-compression during transmission can produce similar artifacts. Recommend physical inspection focusing on the expiry date and date of birth fields, particularly using UV light to check for erasing marks or laminate disturbance.",
+  "disclaimer": "This is an automated AI analysis for prototype/evaluation purposes only. It should not be used as sole evidence in legal or security decisions.",
+  "metadata": {
+    "filename": "sample_national_id.jpg",
+    "file_size_kb": 312.4,
+    "media_type": "image/jpeg",
+    "analyzed_at": "2024-01-15T10:30:00Z",
+    "model": "claude-opus-4-5"
+  }
+}

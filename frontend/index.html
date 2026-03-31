@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VeriDoc — ID Forgery Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ── Reset & Base ───────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c0f;
+    --surface:   #111318;
+    --panel:     #181b22;
+    --border:    #252933;
+    --accent:    #00e5ff;
+    --accent2:   #7c3aed;
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --pass:      #22c55e;
+    --warn:      #f59e0b;
+    --fail:      #ef4444;
+    --info:      #3b82f6;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --r:         10px;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    font-weight: 300;
+    min-height: 100vh;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise texture ────────────────────────────────────────────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(0,229,255,.018) 40px, rgba(0,229,255,.018) 41px),
+      repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(0,229,255,.018) 40px, rgba(0,229,255,.018) 41px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ───────────────────────────────────────────────────────────── */
+  .wrap { position: relative; z-index: 1; max-width: 860px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* ── Header ───────────────────────────────────────────────────────────── */
+  header {
+    padding: 48px 0 36px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .logo-mark {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    box-shadow: 0 0 20px rgba(0,229,255,.3);
+  }
+
+  h1 {
+    font-family: var(--font-head);
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    letter-spacing: -.02em;
+    line-height: 1.1;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .tagline {
+    font-size: .8rem;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+
+  /* ── Upload Zone ──────────────────────────────────────────────────────── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 16px;
+    padding: 56px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+    position: relative;
+    background: var(--surface);
+  }
+
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,255,.04); }
+
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .upload-icon {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    filter: grayscale(.4);
+    display: block;
+  }
+
+  .upload-zone h2 {
+    font-family: var(--font-head);
+    font-size: 1.3rem;
+    margin-bottom: 8px;
+  }
+
+  .upload-zone p { color: var(--muted); font-size: .875rem; }
+
+  /* Preview strip */
+  .preview-wrap {
+    margin-top: 20px;
+    display: none;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 18px;
+    background: var(--panel);
+    border-radius: var(--r);
+    border: 1px solid var(--border);
+  }
+  .preview-wrap.show { display: flex; }
+  .preview-wrap img { height: 70px; width: 110px; object-fit: cover; border-radius: 6px; }
+  .preview-info { flex: 1; text-align: left; }
+  .preview-info strong { display: block; font-size: .875rem; }
+  .preview-info span { color: var(--muted); font-size: .78rem; font-family: var(--font-mono); }
+
+  /* ── Button ───────────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 20px;
+    padding: 14px 32px;
+    background: var(--accent);
+    color: #000;
+    font-family: var(--font-head);
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--r);
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s, opacity .15s;
+    box-shadow: 0 0 24px rgba(0,229,255,.35);
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 32px rgba(0,229,255,.5); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+
+  /* ── Loader ───────────────────────────────────────────────────────────── */
+  .loader { display: none; align-items: center; gap: 14px; margin-top: 28px; }
+  .loader.show { display: flex; }
+  .spinner {
+    width: 28px; height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text { font-family: var(--font-mono); font-size: .85rem; color: var(--muted); }
+
+  /* ── Error Banner ─────────────────────────────────────────────────────── */
+  .error-banner {
+    display: none;
+    margin-top: 20px;
+    padding: 14px 18px;
+    background: rgba(239,68,68,.12);
+    border: 1px solid rgba(239,68,68,.4);
+    border-radius: var(--r);
+    color: #fca5a5;
+    font-size: .875rem;
+    font-family: var(--font-mono);
+  }
+  .error-banner.show { display: block; }
+
+  /* ── Report Card ──────────────────────────────────────────────────────── */
+  .report { display: none; margin-top: 36px; animation: fadeUp .4s ease; }
+  .report.show { display: block; }
+  @keyframes fadeUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform:none; } }
+
+  /* Risk badge */
+  .risk-hero {
+    padding: 32px;
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+  }
+  .risk-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .risk-hero.GENUINE::before, .risk-hero.LOW_RISK::before { background: var(--pass); }
+  .risk-hero.MODERATE_RISK::before { background: var(--warn); }
+  .risk-hero.HIGH_RISK::before, .risk-hero.CRITICAL::before { background: var(--fail); }
+
+  .risk-badge {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-size: 1.8rem;
+    flex-shrink: 0;
+  }
+  .GENUINE .risk-badge, .LOW_RISK .risk-badge { background: rgba(34,197,94,.15); border: 2px solid var(--pass); }
+  .MODERATE_RISK .risk-badge { background: rgba(245,158,11,.15); border: 2px solid var(--warn); }
+  .HIGH_RISK .risk-badge, .CRITICAL .risk-badge { background: rgba(239,68,68,.15); border: 2px solid var(--fail); }
+
+  .risk-info { flex: 1; }
+  .risk-label {
+    font-family: var(--font-head);
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -.02em;
+    margin-bottom: 4px;
+  }
+  .GENUINE .risk-label, .LOW_RISK .risk-label { color: var(--pass); }
+  .MODERATE_RISK .risk-label { color: var(--warn); }
+  .HIGH_RISK .risk-label, .CRITICAL .risk-label { color: var(--fail); }
+
+  .risk-sub { color: var(--muted); font-size: .85rem; font-family: var(--font-mono); }
+
+  .confidence-bar-wrap { margin-top: 12px; }
+  .confidence-bar-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .confidence-bar-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1s cubic-bezier(.22,1,.36,1);
+    background: linear-gradient(90deg, var(--accent2), var(--accent));
+  }
+  .confidence-label { font-size: .78rem; color: var(--muted); font-family: var(--font-mono); }
+
+  /* Section cards */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: var(--font-head);
+    font-size: .78rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  /* Checks list */
+  .checks-list { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+  .check-item {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 10px 12px;
+    align-items: start;
+    padding: 12px 14px;
+    background: var(--panel);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .check-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 9px;
+    border-radius: 99px;
+    font-size: .72rem;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .check-status.PASS   { background: rgba(34,197,94,.15);  color: var(--pass); }
+  .check-status.WARN   { background: rgba(245,158,11,.15); color: var(--warn); }
+  .check-status.FAIL   { background: rgba(239,68,68,.15);  color: var(--fail); }
+  .check-status.INCONCLUSIVE { background: rgba(107,114,128,.2); color: var(--muted); }
+
+  .check-name { font-weight: 500; font-size: .875rem; }
+  .check-detail { color: var(--muted); font-size: .8rem; grid-column: 2; margin-top: 2px; }
+
+  /* Flag / positive lists */
+  .flag-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  .flag-item {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    font-size: .875rem;
+    padding: 10px 14px;
+    border-radius: 8px;
+  }
+  .flag-item.red  { background: rgba(239,68,68,.08);  border: 1px solid rgba(239,68,68,.2); }
+  .flag-item.green{ background: rgba(34,197,94,.08);  border: 1px solid rgba(34,197,94,.2); }
+  .flag-dot { flex-shrink: 0; margin-top: 4px; width: 8px; height: 8px; border-radius: 50%; }
+  .flag-item.red  .flag-dot { background: var(--fail); }
+  .flag-item.green .flag-dot { background: var(--pass); }
+
+  /* Analyst notes */
+  .notes-box {
+    padding: 16px;
+    background: var(--panel);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    font-size: .875rem;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* Summary text */
+  .summary-text { font-size: .95rem; line-height: 1.7; }
+
+  /* Metadata row */
+  .meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .meta-chip {
+    padding: 4px 10px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    font-size: .75rem;
+    font-family: var(--font-mono);
+    color: var(--muted);
+  }
+
+  /* Disclaimer */
+  .disclaimer {
+    margin-top: 28px;
+    padding: 14px 18px;
+    background: rgba(124,58,237,.08);
+    border: 1px solid rgba(124,58,237,.25);
+    border-radius: var(--r);
+    font-size: .78rem;
+    color: #a78bfa;
+    font-family: var(--font-mono);
+  }
+
+  /* ── Responsive ───────────────────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .risk-hero { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-mark">🔍</div>
+    <div>
+      <h1>Veri<span>Doc</span></h1>
+      <p class="tagline">AI-Powered ID Forgery Detection</p>
+    </div>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp,image/gif" />
+    <span class="upload-icon">🪪</span>
+    <h2>Drop your ID document here</h2>
+    <p>Supports JPEG, PNG, WEBP · Max 10 MB</p>
+  </div>
+
+  <div class="preview-wrap" id="previewWrap">
+    <img id="previewImg" src="" alt="preview" />
+    <div class="preview-info">
+      <strong id="previewName"></strong>
+      <span id="previewSize"></span>
+    </div>
+  </div>
+
+  <div style="text-align:center">
+    <button class="btn" id="analyzeBtn" disabled>
+      <span>🔬</span> Analyze Document
+    </button>
+  </div>
+
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <p class="loader-text" id="loaderText">Sending to Claude Vision API…</p>
+  </div>
+
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- Report -->
+  <div class="report" id="report"></div>
+
+</div>
+
+<script>
+const API_BASE = 'http://localhost:8000';
+
+const fileInput   = document.getElementById('fileInput');
+const dropZone    = document.getElementById('dropZone');
+const analyzeBtn  = document.getElementById('analyzeBtn');
+const loader      = document.getElementById('loader');
+const loaderText  = document.getElementById('loaderText');
+const errorBanner = document.getElementById('errorBanner');
+const report      = document.getElementById('report');
+const previewWrap = document.getElementById('previewWrap');
+const previewImg  = document.getElementById('previewImg');
+const previewName = document.getElementById('previewName');
+const previewSize = document.getElementById('previewSize');
+
+let selectedFile = null;
+
+// ── File selection ────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  previewName.textContent = file.name;
+  previewSize.textContent = `${(file.size / 1024).toFixed(1)} KB · ${file.type}`;
+  const reader = new FileReader();
+  reader.onload = e => { previewImg.src = e.target.result; };
+  reader.readAsDataURL(file);
+  previewWrap.classList.add('show');
+  analyzeBtn.disabled = false;
+  hideError();
+  report.classList.remove('show');
+  report.innerHTML = '';
+}
+
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showError(msg) {
+  errorBanner.textContent = '⚠ ' + msg;
+  errorBanner.classList.add('show');
+}
+function hideError() { errorBanner.classList.remove('show'); }
+
+function setLoading(on) {
+  loader.classList.toggle('show', on);
+  analyzeBtn.disabled = on;
+}
+
+const loaderMessages = [
+  'Sending to Claude Vision API…',
+  'Examining font consistency…',
+  'Checking photo integrity…',
+  'Scanning for compression artifacts…',
+  'Evaluating security features…',
+  'Building risk report…',
+];
+let loaderInterval;
+function startLoaderCycle() {
+  let i = 0;
+  loaderText.textContent = loaderMessages[0];
+  loaderInterval = setInterval(() => {
+    i = (i + 1) % loaderMessages.length;
+    loaderText.textContent = loaderMessages[i];
+  }, 1800);
+}
+function stopLoaderCycle() { clearInterval(loaderInterval); }
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+const statusIcon = s => ({ PASS:'✅', WARN:'⚠️', FAIL:'❌', INCONCLUSIVE:'❓' }[s] || '•');
+const riskIcon   = r => ({ GENUINE:'✅', LOW_RISK:'🟢', MODERATE_RISK:'🟡', HIGH_RISK:'🔴', CRITICAL:'🚨' }[r] || '❓');
+const riskLabel  = r => r.replace(/_/g,' ');
+
+// ── Render report ─────────────────────────────────────────────────────────────
+function renderReport(data) {
+  const r = data.overall_risk_level || 'INCONCLUSIVE';
+
+  // -- Risk Hero
+  const heroHtml = `
+    <div class="risk-hero ${r}">
+      <div class="risk-badge">${riskIcon(r)}</div>
+      <div class="risk-info">
+        <div class="risk-label">${riskLabel(r)}</div>
+        <div class="risk-sub">Document type: ${data.document_type || 'Unknown'}</div>
+        <div class="confidence-bar-wrap">
+          <div class="confidence-label">AI Confidence: ${data.confidence_score ?? '—'}%</div>
+          <div class="confidence-bar-track">
+            <div class="confidence-bar-fill" style="width:0%" data-target="${data.confidence_score ?? 0}"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  // -- Summary
+  const summaryHtml = `
+    <div class="section">
+      <div class="section-title">📋 Summary</div>
+      <p class="summary-text">${data.summary || '—'}</p>
+    </div>`;
+
+  // -- Checks
+  const checksHtml = data.checks?.length ? `
+    <div class="section">
+      <div class="section-title">🔎 Forensic Checks</div>
+      <ul class="checks-list">
+        ${data.checks.map(c => `
+          <li class="check-item">
+            <span class="check-status ${c.status}">${statusIcon(c.status)} ${c.status}</span>
+            <span class="check-name">${c.check_name}</span>
+            <span class="check-detail">${c.detail}</span>
+          </li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  // -- Red flags
+  const flagsHtml = data.red_flags?.length ? `
+    <div class="section">
+      <div class="section-title">🚩 Red Flags</div>
+      <ul class="flag-list">
+        ${data.red_flags.map(f => `
+          <li class="flag-item red"><span class="flag-dot"></span>${f}</li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  // -- Positive indicators
+  const posHtml = data.positive_indicators?.length ? `
+    <div class="section">
+      <div class="section-title">✅ Positive Indicators</div>
+      <ul class="flag-list">
+        ${data.positive_indicators.map(f => `
+          <li class="flag-item green"><span class="flag-dot"></span>${f}</li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  // -- Analyst notes
+  const notesHtml = data.analyst_notes ? `
+    <div class="section">
+      <div class="section-title">🧠 Analyst Notes</div>
+      <div class="notes-box">${data.analyst_notes}</div>
+    </div>` : '';
+
+  // -- Metadata
+  const m = data.metadata || {};
+  const metaHtml = `
+    <div class="section">
+      <div class="section-title">📁 Metadata</div>
+      <div class="meta-row">
+        ${m.filename  ? `<span class="meta-chip">📄 ${m.filename}</span>` : ''}
+        ${m.file_size_kb ? `<span class="meta-chip">💾 ${m.file_size_kb} KB</span>` : ''}
+        ${m.model     ? `<span class="meta-chip">🤖 ${m.model}</span>` : ''}
+        ${m.analyzed_at ? `<span class="meta-chip">🕐 ${m.analyzed_at.replace('T',' ').replace('Z',' UTC')}</span>` : ''}
+      </div>
+    </div>`;
+
+  // -- Disclaimer
+  const disclaimerHtml = `<div class="disclaimer">⚠ ${data.disclaimer || 'For evaluation/prototype use only.'}</div>`;
+
+  report.innerHTML = heroHtml + summaryHtml + checksHtml + flagsHtml + posHtml + notesHtml + metaHtml + disclaimerHtml;
+  report.classList.add('show');
+
+  // Animate confidence bar
+  setTimeout(() => {
+    const fill = report.querySelector('.confidence-bar-fill');
+    if (fill) fill.style.width = fill.dataset.target + '%';
+  }, 100);
+}
+
+// ── Analyze ───────────────────────────────────────────────────────────────────
+analyzeBtn.addEventListener('click', async () => {
+  if (!selectedFile) return;
+  hideError();
+  report.classList.remove('show');
+  setLoading(true);
+  startLoaderCycle();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    const res = await fetch(`${API_BASE}/analyze`, { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.detail || `HTTP ${res.status}`);
+    }
+    renderReport(data);
+  } catch (err) {
+    showError(err.message || 'Unknown error. Is the backend running?');
+  } finally {
+    setLoading(false);
+    stopLoaderCycle();
+  }
+});
+</script>
+</body>
+</html>
