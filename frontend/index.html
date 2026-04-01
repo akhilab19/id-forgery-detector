@@ -477,13 +477,18 @@ function setLoading(on) {
 }
 
 const loaderMessages = [
-  'Sending to Gemini Vision API…',
-  'Examining font consistency…',
-  'Checking photo integrity…',
-  'Scanning for compression artifacts…',
-  'Evaluating security features…',
-  'Building risk report…',
+  'Validating document format…',
+  'Decoding image data…',
+  'Analyzing image with OpenCV…',
+  'Detecting blur, noise & edges…',
+  'Evaluating color & compression patterns…',
+  'Running rule-based risk scoring…',
+  'Sending to AI forensic analysis…',
+  'Checking font, layout & photo integrity…',
+  'Combining AI + signal analysis…',
+  'Generating final risk report…'
 ];
+
 let loaderInterval;
 function startLoaderCycle() {
   let i = 0;
