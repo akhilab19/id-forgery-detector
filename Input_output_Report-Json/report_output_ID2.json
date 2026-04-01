@@ -1,0 +1,82 @@
+{
+  "document_type": "Driver License",
+  "overall_risk_level": "LOW_RISK",
+  "confidence_score": 95,
+  "summary": "The document is an illustration of a driver's license, featuring generic placeholder data and an avatar photo. It shows no signs of digital tampering or manipulation, but it is not a valid identification document.",
+  "checks": [
+    {
+      "check_name": "Font Consistency",
+      "status": "PASS",
+      "detail": "Fonts appear consistent across all text fields, with appropriate variations for headings and data."
+    },
+    {
+      "check_name": "Alignment & Spacing",
+      "status": "PASS",
+      "detail": "Text fields and data elements are properly aligned and spaced, showing no irregularities."
+    },
+    {
+      "check_name": "Photo Integrity",
+      "status": "PASS",
+      "detail": "The photo is a generic avatar, consistent with the illustrative nature of the document. There are no hard edges, lighting inconsistencies, or resolution mismatches suggesting a swapped photo."
+    },
+    {
+      "check_name": "Document Layout",
+      "status": "PASS",
+      "detail": "The overall layout matches a typical driver's license design, with proper placement of data fields and a generic security element (hologram)."
+    },
+    {
+      "check_name": "Print Quality & Artifacts",
+      "status": "PASS",
+      "detail": "The image exhibits good print quality with no noticeable compression artifacts, blurring in specific regions, or inconsistent ink/print density. OpenCV signals are consistent with a clean digital image."
+    },
+    {
+      "check_name": "Security Features",
+      "status": "WARN",
+      "detail": "A generic 'VERIFIED' hologram and a barcode are present. However, advanced security features like microprint or complex guilloche patterns are not discernible or are absent, which is expected for an illustrative sample."
+    },
+    {
+      "check_name": "Metadata & Lighting Coherence",
+      "status": "PASS",
+      "detail": "As an illustration, lighting is uniform and consistent across the document, with no inconsistent shadows or reflections."
+    },
+    {
+      "check_name": "Text Field Tampering",
+      "status": "PASS",
+      "detail": "No signs of tampering were detected in text fields, such as different background colors, altered font weights, or ghosting."
+    }
+  ],
+  "red_flags": [
+    "Document is a generic illustration/sample and not a valid identification document."
+  ],
+  "positive_indicators": [
+    "Clear and consistent document layout",
+    "Uniform font usage",
+    "Presence of a generic 'VERIFIED' hologram and barcode",
+    "No visible signs of digital manipulation or tampering"
+  ],
+  "analyst_notes": "The document is clearly an illustrative sample or template for a driver's license, indicated by placeholder text like 'NAME SURNAME' and a generic avatar. While it is not a valid ID, there are no forensic indicators of tampering or forgery on the illustration itself.",
+  "disclaimer": "This is an automated AI analysis for prototype/evaluation purposes only. It should not be used as sole evidence in legal or security decisions.",
+  "manual_analysis": {
+    "blur": 2219.729392624729,
+    "noise": 57.89940599143125,
+    "edges": 0.04291998071824536,
+    "color_variance": 56.739674433009455,
+    "compression": 0.06033976376056671,
+    "text_density": 0.14740298867196916
+  },
+  "rule_based": {
+    "status": "likely_genuine",
+    "issues": [
+      "Moderate noise detected"
+    ],
+    "confidence": 0.12
+  },
+  "validity_status": "NOT_VALID_DOCUMENT",
+  "metadata": {
+    "filename": ".\\test_samples\\ID3.jpg",
+    "file_size_kb": 25.8,
+    "media_type": "image/jpeg",
+    "analyzed_at": "2026-04-01T08:35:48.924682Z",
+    "model": "gemini-2.5-flash + OpenCV hybrid"
+  }
+}

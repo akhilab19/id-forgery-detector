@@ -1,0 +1,83 @@
+{
+  "document_type": "ID Card",
+  "overall_risk_level": "CRITICAL",
+  "confidence_score": 90,
+  "summary": "The document presents as a basic ID card but contains a critical anomaly in the name field, where a numeral '1' is used instead of the letter 'I' in 'MARTINEZ'. This, combined with the absence of standard security features, indicates a high likelihood of being an invalid or tampered document.",
+  "checks": [
+    {
+      "check_name": "Font Consistency",
+      "status": "FAIL",
+      "detail": "The name 'DANI MART1NEZ' uses a numeral '1' instead of the letter 'I', which is a significant inconsistency and suggests a typo or deliberate alteration. Other fonts appear consistent."
+    },
+    {
+      "check_name": "Alignment & Spacing",
+      "status": "PASS",
+      "detail": "Text fields and data elements appear to be properly aligned and spaced without obvious irregularities."
+    },
+    {
+      "check_name": "Photo Integrity",
+      "status": "PASS",
+      "detail": "The photo appears naturally embedded with consistent resolution and no obvious hard edges or lighting inconsistencies suggesting a swap."
+    },
+    {
+      "check_name": "Document Layout",
+      "status": "WARN",
+      "detail": "The overall layout is generic and lacks typical security elements found on official ID documents, such as holograms or complex background patterns. It resembles a basic template."
+    },
+    {
+      "check_name": "Print Quality & Artifacts",
+      "status": "PASS",
+      "detail": "The print quality appears consistent across the document with no significant compression artifacts, blurring, or inconsistent ink density in specific regions."
+    },
+    {
+      "check_name": "Security Features",
+      "status": "FAIL",
+      "detail": "No visible advanced security features such as microprint, guilloche patterns, or holograms are present. A barcode is visible, but its content is not verifiable, and there is no Machine-Readable Zone (MRZ)."
+    },
+    {
+      "check_name": "Metadata & Lighting Coherence",
+      "status": "INCONCLUSIVE",
+      "detail": "Insufficient information to assess metadata or lighting coherence from the provided static image."
+    },
+    {
+      "check_name": "Text Field Tampering",
+      "status": "FAIL",
+      "detail": "The name 'MART1NEZ' clearly shows a numeral '1' instead of the letter 'I', which is a strong indicator of either a critical data entry error or deliberate text alteration. No other obvious background color differences or ghosting were observed."
+    }
+  ],
+  "red_flags": [
+    "The name 'MART1NEZ' contains a numeral '1' instead of the letter 'I', indicating a likely typo or deliberate alteration.",
+    "Lack of standard security features (e.g., holograms, microprint, MRZ) common on official ID documents.",
+    "Generic design and layout, suggesting it might be a template or sample rather than an officially issued ID."
+  ],
+  "positive_indicators": [
+    "The photo appears clear and well-integrated.",
+    "Overall text alignment and spacing are consistent (excluding the '1' anomaly)."
+  ],
+  "analyst_notes": "The most significant issue is the '1' in the surname, which fundamentally compromises the integrity of the primary identifier. This document cannot be considered a valid ID due to this critical discrepancy and the absence of expected security features.",
+  "disclaimer": "This is an automated AI analysis for prototype/evaluation purposes only. It should not be used as sole evidence in legal or security decisions.",
+  "manual_analysis": {
+    "blur": 2089.805090890463,
+    "noise": 82.20401356598042,
+    "edges": 0.03366721927343819,
+    "color_variance": 17.328837708045963,
+    "compression": 0.05745110660791397,
+    "text_density": 0.3716071569542544
+  },
+  "rule_based": {
+    "status": "review",
+    "issues": [
+      "High noise level (possible editing)",
+      "Abnormal text density (possible overlay)"
+    ],
+    "confidence": 0.38
+  },
+  "validity_status": "LIKELY_VALID",
+  "metadata": {
+    "filename": ".\\test_samples\\tamp_ID.png",
+    "file_size_kb": 131.1,
+    "media_type": "image/jpeg",
+    "analyzed_at": "2026-04-01T10:24:00.821955Z",
+    "model": "gemini-2.5-flash + OpenCV hybrid"
+  }
+}

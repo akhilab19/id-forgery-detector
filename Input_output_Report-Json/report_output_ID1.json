@@ -1,0 +1,85 @@
+{
+  "document_type": "National ID",
+  "overall_risk_level": "LOW_RISK",
+  "confidence_score": 95,
+  "summary": "The document is identified as a Slovak National ID card. It is explicitly marked as a 'Specimen' (Vzorka) document, indicating it is not a valid identification document for a real person. No signs of digital tampering or physical alteration were detected on the specimen itself.",
+  "checks": [
+    {
+      "check_name": "Font Consistency",
+      "status": "PASS",
+      "detail": "All text fields exhibit consistent font styles and sizes, including the 'Specimen' markings and placeholder data."
+    },
+    {
+      "check_name": "Alignment & Spacing",
+      "status": "PASS",
+      "detail": "Text fields and data elements are properly aligned and spaced, consistent with a standard ID card layout."
+    },
+    {
+      "check_name": "Photo Integrity",
+      "status": "PASS",
+      "detail": "The grayscale photo appears naturally embedded with no hard edges, lighting inconsistencies, or resolution mismatches suggesting a swap."
+    },
+    {
+      "check_name": "Document Layout",
+      "status": "PASS",
+      "detail": "The overall layout, placement of elements, and background patterns are consistent with known Slovak National ID card conventions."
+    },
+    {
+      "check_name": "Print Quality & Artifacts",
+      "status": "PASS",
+      "detail": "Print quality is good with clear text and background patterns. Low compression artifacts (0.0434) and no inconsistent ink density or signs of re-digitization were observed."
+    },
+    {
+      "check_name": "Security Features",
+      "status": "PASS",
+      "detail": "Guilloche background patterns are clearly visible. The 'SK' logo and national emblem are present. While a specimen, the visual elements suggest proper security feature integration."
+    },
+    {
+      "check_name": "Metadata & Lighting Coherence",
+      "status": "PASS",
+      "detail": "Lighting and reflections across the document are consistent, indicating no compositing of different image parts."
+    },
+    {
+      "check_name": "Text Field Tampering",
+      "status": "PASS",
+      "detail": "No signs of text field tampering such as different background colors, altered font weights, ghosting, or erased text were detected."
+    }
+  ],
+  "red_flags": [
+    "Document is explicitly marked as 'Specimen' (Vzorka) and is not a valid identification document.",
+    "Contains placeholder data (e.g., 'Specimen' for name, '11.11.1911' for date of birth, '111111/1111' for personal number)."
+  ],
+  "positive_indicators": [
+    "Consistent font usage and sizing across all data fields.",
+    "Proper alignment and spacing of all textual elements.",
+    "Photo appears genuinely integrated into the document design.",
+    "Document layout and design are consistent with a genuine Slovak National ID card template.",
+    "High print quality with visible guilloche patterns and no significant digital artifacts."
+  ],
+  "analyst_notes": "The document is a sample/specimen ID card, not intended for actual identification. The risk assessment pertains to the integrity of the specimen document itself, not its validity as a real ID for a person. No evidence of tampering with the specimen document was found.",
+  "disclaimer": "This is an automated AI analysis for prototype/evaluation purposes only. It should not be used as sole evidence in legal or security decisions.",
+  "manual_analysis": {
+    "blur": 804.3244143285206,
+    "noise": 42.61903214338967,
+    "edges": 0.10896485108428716,
+    "color_variance": 40.07565954878675,
+    "compression": 0.043434254825115204,
+    "text_density": 0.2946024354229645
+  },
+  "rule_based": {
+    "status": "likely_genuine",
+    "issues": [
+      "Moderate noise detected",
+      "Abnormal text density (possible overlay)"
+    ],
+    "confidence": 0.25
+  },
+  "validity_status": "SPECIMEN_DOCUMENT",
+  "metadata": {
+    "filename": ".\\test_samples\\ID2.jpg",
+    "file_size_kb": 215.7,
+    "media_type": "image/jpeg",
+    "analyzed_at": "2026-04-01T08:27:18.911660Z",
+    "model": "gemini-2.5-flash + OpenCV hybrid"
+  }
+}

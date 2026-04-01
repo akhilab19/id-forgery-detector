@@ -8,7 +8,7 @@ generate structured forgery risk reports.
 ## Architecture
 
 ```
-User (Browser or CLI)
+User (Browser/CLI)
         │
         ▼
   Frontend  ──── multipart/form-data ────►  FastAPI Backend
@@ -73,17 +73,18 @@ this prototype uses **Claude's visual reasoning** to act as a forensic analyst.
 ### 1. Clone & Install
 
 ```bash
-git clone <your-repo-url>
+git clone <yrepo-url>
 cd id-forgery-detector
 
-pip install -r backend/requirements.txt
+create a python virtual environment : py -m venv venv
+Activate the virtual environment : .\venv\Scripts\activate
+Install requirements : pip install -r backend/requirements.txt
 ```
 
-### 2. Set API Key
+### 2. Set API Key in .env
 
-```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-```
+Create a .env file in the root with content :
+GEMINI_API_KEY=YOUR API KEY
 
 ### 3. Start the Backend
 
