@@ -131,7 +131,7 @@ cd id-forgery-detector
 pip install -r backend/requirements.txt
 ```
 
-### 2. Get a Free API Key (no credit card needed)
+### 2. Get a Free API Key
 
 1. Go to [aistudio.google.com](https://aistudio.google.com)
 2. Sign in with your Google account
@@ -141,7 +141,7 @@ pip install -r backend/requirements.txt
 ### 3. Create a `.env` file in the `backend/` folder
 
 ```
-GEMINI_API_KEY=AIzaYour-key-here
+GEMINI_API_KEY=Your-key-here
 ```
 
 ### 4. Start the Backend
