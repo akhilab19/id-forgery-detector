@@ -1,262 +1,269 @@
-# 🔍 VeriDoc — ID Document Forgery Detection
+# Approach, Architecture & Tool Rationale
 
-A prototype service that uses a **hybrid OpenCV + Gemini Vision AI pipeline** to analyze
-ID document images and generate structured forgery risk reports.
+## VeriDoc — ID Forgery Detection Prototype
+
+### Core Philosophy
+
+1. **Forgery detection is treated as anomaly detection, not classification.**
+2. **The system combines rule-based image analysis with AI-generated reasoning (hybrid approach).**
+3. **The goal is explainability over raw accuracy.**
 
 ---
 
-## Architecture
+## Problem Understanding
+
+The objective is to analyze an uploaded ID document image and generate a forgery risk
+report indicating whether the document appears genuine or suspicious.
+
+This task is **not** about verifying real-world validity (e.g., whether the ID is
+officially government-issued), but about identifying:
+
+- Visual inconsistencies
+- Signs of tampering or digital manipulation
+- Structural anomalies in layout, fonts, and photo embedding
+
+The problem is therefore treated as **anomaly detection + reasoning**, not a
+strict binary classification task.
+
+### Key Design Insight — Forgery Risk vs Document Validity
+
+A crucial distinction is made between two separate concerns:
+
+| Concern               | Question                                              | Example                                        |
+| --------------------- | ----------------------------------------------------- | ---------------------------------------------- |
+| **Forgery Risk**      | Does the image show signs of editing or manipulation? | Tampered expiry date → HIGH_RISK               |
+| **Document Validity** | Is this a real issued ID or a placeholder?            | Specimen card → NOT_VALID but LOW forgery risk |
+
+**Why this matters:**
+A specimen ID is not a forgery — it has not been tampered with. A naive system
+would flag it as CRITICAL simply because it looks "wrong." Our validity classification
+layer handles this separately, preventing misclassification and producing more
+honest, explainable results.
+
+---
+
+## Architecture Overview
 
 ```
-User (Browser or CLI)
-        │
-        ▼
-  Frontend (HTML/JS)
-  drag-drop upload
-        │  multipart/form-data
-        ▼
-  FastAPI Backend (main.py)
-        │
-        ├─► Layer 1: Input Validation       (MIME type + file size)
-        │
-        ├─► Layer 2: OpenCV Processing      (blur, noise, edges,
-        │                                    color, compression, text)
-        │
-        ├─► Layer 3: Rule-Based Scoring     (threshold evaluation
-        │                                    → risk score + issues)
-        │
-        ├─► Layer 4: Gemini 2.5 Flash       (image + OpenCV signals
-        │            Vision API              → structured JSON report)
-        │
-        ├─► Layer 5: Validity Classification (specimen/sample/not-id
-        │                                     keyword detection)
-        │
-        └─► Layer 6: Report Assembly        (merged final_report)
-                │
-                ▼
-        Structured JSON Response
+┌─────────────────────────────────────────────────────┐
+│                     Frontend                         │
+│      index.html  (drag-drop upload + report UI)      │
+└───────────────────────┬─────────────────────────────┘
+                        │  multipart/form-data POST /analyze
+                        ▼
+┌─────────────────────────────────────────────────────┐
+│             FastAPI Backend  (main.py)               │
+│                                                     │
+│  Layer 1 ── Input Validation                        │
+│             • MIME type check (JPEG/PNG/WEBP only)   │
+│             • File size check (max 10 MB)            │
+│                        │                            │
+│  Layer 2 ── Image Processing  (OpenCV)              │
+│             • Blur Detection                        │
+│             • Noise Analysis                        │
+│             • Edge Density                          │
+│             • Color Variance                        │
+│             • Compression Artifacts                 │
+│             • Text Region Density                   │
+│                        │                            │
+│  Layer 3 ── Rule-Based Scoring                      │
+│             • Threshold evaluation per metric       │
+│             • Cumulative risk score                 │
+│             • Issue list generation                 │
+│                        │                            │
+│  Layer 4 ── AI Reasoning  (Gemini 2.5 Flash Vision) │
+│             • Receives image + OpenCV signals       │
+│             • 8-category forensic prompt            │
+│             • Returns structured JSON report        │
+│                        │                            │
+│  Layer 5 ── Validity Classification                 │
+│             • Keyword scan (specimen/sample/not-id) │
+│             • Separates validity from forgery risk  │
+│                        │                            │
+│  Layer 6 ── Report Assembly                         │
+│             • Merges all layers into final_report   │
+│             • Attaches metadata                     │
+└───────────────────────┬─────────────────────────────┘
+                        │  JSON response
+                        ▼
+              Structured Forgery Risk Report
 ```
+
+---
+
+## Detection Layers — Detailed
+
+### Layer 1 — Input Validation
+
+Before any processing begins, the uploaded file is validated for:
+
+- **MIME type** — only `image/jpeg`, `image/png`, `image/webp` are accepted.
+  PDFs are excluded because they are multi-layer containers that require a separate
+  extraction pipeline, and they introduce a security risk from embedded executables.
+- **File size** — files over 10 MB are rejected to prevent memory issues and
+  ensure reasonable API response times.
+
+### Layer 2 — Image Processing (OpenCV)
+
+Six deterministic, measurable signals are extracted from the raw image bytes:
+
+| Function                         | Signal                  | What It Detects                                                       |
+| -------------------------------- | ----------------------- | --------------------------------------------------------------------- |
+| `detect_blur()`                  | Laplacian variance      | Low sharpness → possible tampering concealment or low-quality forgery |
+| `detect_noise()`                 | Grayscale std deviation | High noise → editing artifacts from compositing or re-encoding        |
+| `detect_edges()`                 | Canny edge density      | Weak edges → structural breaks; too many edges → noise/artifacts      |
+| `detect_color_inconsistency()`   | HSV saturation variance | High variance → mismatched color regions from compositing             |
+| `detect_compression_artifacts()` | DCT mean coefficient    | High value → uneven JPEG re-compression typical of edited regions     |
+| `detect_text_regions()`          | Thresholded pixel ratio | Abnormal density → missing text (unusual for ID) or overlaid text     |
+
+These signals are **deterministic and explainable** — the same image always
+produces the same values, making the system fully auditable.
+
+### Layer 3 — Rule-Based Scoring
+
+`generate_report()` maps each OpenCV metric against empirically chosen thresholds
+to produce a human-readable issue list and a cumulative risk score:
+
+```
+Blur    < 80  → "Image is blurry"               +2 pts
+Blur   80–120 → "Slight blur detected"           +1 pt
+Noise   > 60  → "High noise (possible editing)"  +2 pts
+Noise  40–60  → "Moderate noise"                 +1 pt
+Edges  < 0.03 → "Weak edge structure"            +2 pts
+Edges  > 0.15 → "Too many edges"                 +1 pt
+Color   > 60  → "High color inconsistency"       +2 pts
+DCT     > 0.2 → "Compression artifacts"          +1 pt
+Text   < 0.02 → "Low text presence"              +1 pt
+Text   > 0.25 → "Abnormal text density"          +1 pt
+
+Score ≥ 6  →  suspicious
+Score ≥ 3  →  review
+Score  < 3  →  likely_genuine
+```
+
+This layer catches cases that pure visual AI might miss — for example, a
+high-quality forgery with consistent appearance but anomalous noise patterns.
+
+### Layer 4 — AI Reasoning (Gemini 2.5 Flash Vision)
+
+Gemini Vision receives both the raw image and the computed OpenCV signals,
+grounding its reasoning with measurable data:
+
+```python
+prompt = f"""
+  Blur score:    {manual_results["blur"]}
+  Noise level:   {manual_results["noise"]}
+  Edge density:  {manual_results["edges"]}
+  ...
+  {FORGERY_ANALYSIS_PROMPT}
+"""
+```
+
+The forensic prompt instructs Gemini to evaluate 8 high-level semantic signals
+that OpenCV cannot measure on its own:
+
+| #   | Signal               | Why AI is Needed                                  |
+| --- | -------------------- | ------------------------------------------------- |
+| 1   | Font Consistency     | Requires reading and comparing typefaces          |
+| 2   | Alignment & Spacing  | Requires understanding ID layout conventions      |
+| 3   | Photo Integrity      | Requires detecting lighting/resolution mismatches |
+| 4   | Document Layout      | Requires knowledge of MRZ zones, seals, holograms |
+| 5   | Print Quality        | Requires reasoning about ink density patterns     |
+| 6   | Security Features    | Requires knowledge of guilloche, microprint       |
+| 7   | Lighting Coherence   | Requires reasoning about shadow direction         |
+| 8   | Text Field Tampering | Requires detecting ghosting and background shifts |
+
+The model is configured with:
+
+- `response_mime_type="application/json"` — forces clean JSON output with no markdown wrapping
+- `max_output_tokens=8192` — enough room for detailed per-check analysis
+- `temperature=0.2` — low temperature for consistent, deterministic responses
+
+### Layer 5 — Validity Classification
+
+`classify_validity()` performs a keyword scan over the AI report content to
+classify the document's validity status separately from its forgery risk:
+
+| Status               | Trigger                                      |
+| -------------------- | -------------------------------------------- |
+| `SPECIMEN_DOCUMENT`  | Report contains "specimen"                   |
+| `SAMPLE_DOCUMENT`    | Report contains "sample"                     |
+| `NOT_VALID_DOCUMENT` | Report contains "not a valid" or "not valid" |
+| `NOT_AN_ID`          | Report contains "not an id"                  |
+| `LIKELY_VALID`       | None of the above matched                    |
+
+This prevents a specimen card from being misclassified as a HIGH_RISK forgery —
+it is not tampered, it is simply not a real document.
+
+### Layer 6 — Report Assembly
+
+The final report merges all layers into a single structured response:
+
+```json
+{
+  "document_type": "from Gemini",
+  "overall_risk_level": "from Gemini",
+  "confidence_score": "from Gemini",
+  "summary": "from Gemini",
+  "checks": "from Gemini (per-signal breakdown)",
+  "red_flags": "from Gemini",
+  "positive_indicators": "from Gemini",
+  "analyst_notes": "from Gemini",
+  "disclaimer": "from Gemini",
+  "manual_analysis": "from OpenCV (6 raw metrics)",
+  "rule_based": "from rule engine (status + issues + confidence)",
+  "validity_status": "from validity classifier",
+  "metadata": "filename, size, model, timestamp"
+}
+```
+
+---
+
+## Why This Hybrid Approach?
+
+| Approach                 | Pros                                       | Cons                                  |
+| ------------------------ | ------------------------------------------ | ------------------------------------- |
+| **AI only**              | Understands semantics, fonts, layout       | Can hallucinate; not auditable        |
+| **OpenCV only**          | Deterministic, fast, fully auditable       | Cannot read text or understand layout |
+| **Hybrid (this system)** | Deterministic signals + semantic reasoning | Slightly more complex pipeline        |
+
+The hybrid approach is the most robust choice for a prototype because:
+
+1. OpenCV signals **ground** the AI reasoning with hard, measurable numbers
+2. AI reasoning **interprets** signals that pixel math alone cannot explain
+3. Rule-based scoring **provides a safety net** independent of the AI
+4. Validity classification **prevents category errors** on specimen/sample IDs
 
 ---
 
 ## Tools & Technologies
 
-| Layer            | Technology                  | Why Chosen                                                       |
-| ---------------- | --------------------------- | ---------------------------------------------------------------- |
-| Backend          | **FastAPI**                 | Async Python, auto-generated OpenAPI docs, ideal for ML services |
-| Image Processing | **OpenCV + NumPy**          | Deterministic, auditable, industry-standard computer vision      |
-| AI Model         | **Gemini 2.5 Flash Vision** | Free tier, multimodal, strong visual and semantic reasoning      |
-| Frontend         | **Vanilla HTML/CSS/JS**     | Zero dependencies, runs anywhere, fast to demo                   |
-| Env Management   | **python-dotenv**           | Secure API key management                                        |
+| Layer            | Technology                              | Why Chosen                                                       |
+| ---------------- | --------------------------------------- | ---------------------------------------------------------------- |
+| Backend          | **FastAPI**                             | Async Python, auto-generated OpenAPI docs, ideal for ML services |
+| Image Processing | **OpenCV + NumPy**                      | Industry-standard computer vision; deterministic and fast        |
+| AI Model         | **Gemini 2.5 Flash Vision (free tier)** | No cost, multimodal, strong visual reasoning                     |
+| Frontend         | **Vanilla HTML/CSS/JS**                 | Zero dependencies, runs anywhere, fast to demo                   |
+| Env Management   | **python-dotenv**                       | Secure API key handling without hardcoding                       |
 
 ---
 
-## Fraud Detection Approach
+## Limitations
 
-Rather than training a custom ML model (which would require large labeled datasets),
-this prototype uses a **hybrid pipeline** combining deterministic image processing
-with AI-powered visual reasoning.
-
-### OpenCV Signals (Layer 2)
-
-Six measurable image features are extracted before the AI is involved:
-
-| Signal                | Method                  | Detects                                    |
-| --------------------- | ----------------------- | ------------------------------------------ |
-| Blur                  | Laplacian variance      | Tampering concealment, low-quality forgery |
-| Noise                 | Grayscale std deviation | Editing artifacts, compositing             |
-| Edge Density          | Canny edge detection    | Structural breaks, copy-paste regions      |
-| Color Variance        | HSV saturation std      | Mismatched color tones from compositing    |
-| Compression Artifacts | DCT mean coefficient    | Uneven JPEG re-encoding in edited areas    |
-| Text Density          | Thresholded pixel ratio | Missing or overlaid text                   |
-
-### AI Forensic Signals (Layer 4 — Gemini Vision)
-
-Eight semantic signals that only a vision model can evaluate:
-
-1. **Font Consistency** — Mismatched typefaces indicate text substitution
-2. **Alignment & Spacing** — Irregular spacing signals copy-paste tampering
-3. **Photo Integrity** — Hard edges, lighting mismatch, resolution delta
-4. **Document Layout** — Compliance with MRZ zones, seals, hologram placement
-5. **Print Quality & Artifacts** — JPEG artifacts concentrated in edited regions
-6. **Security Features** — Presence/absence of guilloche patterns, microprint
-7. **Lighting Coherence** — Inconsistent shadows suggest compositing
-8. **Text Field Tampering** — Ghosting, background color differences, font weight shifts
-
-### Key Design Insight — Forgery Risk vs Document Validity
-
-The system separately classifies two concerns that naive systems conflate:
-
-| Concern               | Meaning                       | Example                                        |
-| --------------------- | ----------------------------- | ---------------------------------------------- |
-| **Forgery Risk**      | Signs of tampering/editing    | Altered expiry date → HIGH_RISK                |
-| **Document Validity** | Whether the ID is real/issued | Specimen card → NOT_VALID but LOW forgery risk |
-
-This prevents specimen or sample IDs from being wrongly flagged as CRITICAL.
-
-### Output Risk Levels
-
-| Level           | Meaning                                      |
-| --------------- | -------------------------------------------- |
-| `GENUINE`       | No suspicious signals found                  |
-| `LOW_RISK`      | Minor anomalies, likely authentic            |
-| `MODERATE_RISK` | Notable anomalies; manual review recommended |
-| `HIGH_RISK`     | Strong indicators of tampering               |
-| `CRITICAL`      | Near-certain forgery signals                 |
-
-### Validity Status (separate from risk level)
-
-| Status               | Meaning                            |
-| -------------------- | ---------------------------------- |
-| `LIKELY_VALID`       | Appears to be a real issued ID     |
-| `SPECIMEN_DOCUMENT`  | Detected as a specimen card        |
-| `SAMPLE_DOCUMENT`    | Detected as a sample/placeholder   |
-| `NOT_VALID_DOCUMENT` | Explicitly identified as not valid |
-| `NOT_AN_ID`          | Not an ID document at all          |
-
----
-
-## Setup & Run
-
-### Prerequisites
-
-- Python 3.10+
-- A free Gemini API key from [aistudio.google.com](https://aistudio.google.com)
-
-### 1. Clone & Install
-
-```bash
-git clone <your-repo-url>
-cd id-forgery-detector
-pip install -r backend/requirements.txt
-```
-
-### 2. Get a Free API Key (no credit card needed)
-
-1. Go to [aistudio.google.com](https://aistudio.google.com)
-2. Sign in with your Google account
-3. Click **"Get API Key"** → **"Create API key"**
-4. Copy the key (starts with `AIza...`)
-
-### 3. Create a `.env` file in the `backend/` folder
-
-```
-GEMINI_API_KEY=AIzaYour-key-here
-```
-
-### 4. Start the Backend
-
-```powershell
-# Windows
-cd backend
-uvicorn main:app --reload --port 8000
-```
-
-```bash
-# Mac / Linux
-cd backend
-uvicorn main:app --reload --port 8000
-```
-
-The API will be live at `http://localhost:8000`
-Interactive API docs: `http://localhost:8000/docs`
-
-### 5. Open the Frontend
-
-Simply open `frontend/index.html` in your browser, or serve it locally:
-
-```bash
-cd frontend
-python -m http.server 3000
-# then open http://localhost:3000
-```
-
-### 6. Test via CLI
-
-```bash
-python test_api.py samples/sample_id.jpg
-```
-
----
-
-## API Reference
-
-### `POST /analyze`
-
-Upload an ID document image and receive a full forgery risk report.
-
-**Request:** `multipart/form-data` with `file` field
-**Accepted types:** `image/jpeg`, `image/png`, `image/webp`
-**Max size:** 10 MB
-
-**Response:**
-
-```json
-{
-  "document_type": "National ID",
-  "overall_risk_level": "MODERATE_RISK",
-  "confidence_score": 72,
-  "summary": "The document shows several inconsistencies...",
-  "checks": [
-    { "check_name": "Font Consistency", "status": "WARN", "detail": "..." }
-  ],
-  "red_flags": ["Irregular background behind DOB field"],
-  "positive_indicators": ["MRZ zone appears properly formatted"],
-  "analyst_notes": "...",
-  "disclaimer": "...",
-  "manual_analysis": {
-    "blur": 145.3,
-    "noise": 38.2,
-    "edges": 0.07,
-    "color_variance": 42.1,
-    "compression": 0.15,
-    "text_density": 0.09
-  },
-  "rule_based": {
-    "status": "likely_genuine",
-    "issues": [],
-    "confidence": 0.12
-  },
-  "validity_status": "LIKELY_VALID",
-  "metadata": {
-    "filename": "id.jpg",
-    "file_size_kb": 245.3,
-    "media_type": "image/jpeg",
-    "analyzed_at": "2024-01-15T10:30:00Z",
-    "model": "gemini-2.5-flash + OpenCV hybrid"
-  }
-}
-```
-
-### `GET /health`
-
-Returns `{ "status": "ok", "timestamp": "..." }`
-
----
-
-## Sample Output
-
-See `samples/` folder for example inputs and `samples/sample_report.json` for a
-full annotated JSON output.
-
----
-
-## Limitations & Disclaimer
-
-- This is a **prototype** for evaluation purposes only
-- OpenCV thresholds are heuristic, not trained on a labeled forgery dataset
-- Gemini Vision has not been fine-tuned on ID forgery datasets
-- Should **not** be used as sole evidence in legal or security decisions
-- Accuracy depends on image quality and document type familiarity
+- Vision-based reasoning cannot replace physical inspection (UV light, tactile feel)
+- OpenCV thresholds are heuristic — not trained on a labeled forgery dataset
+- Gemini has not been fine-tuned specifically on ID forgery datasets
+- Image quality heavily affects accuracy — blurry or low-resolution uploads reduce reliability
+- Not suitable for production use without additional validation layers
 
 ---
 
 ## Future Improvements
 
-- Pass all 6 OpenCV signals to Gemini (currently only blur, noise, edges)
-- Error Level Analysis (ELA) as a dedicated pre-processing step
-- MRZ checksum validation
-- Template matching against a per-country genuine document database
-- Fine-tuned CNN (e.g., ManTraNet) for forgery localization
-- PDF support via image extraction pipeline
-- Batch processing via ZIP upload
+- **Pass all 6 OpenCV signals to Gemini** — currently only blur, noise, edges are passed; color variance, compression, and text density should also be included for richer grounding
+- **Error Level Analysis (ELA)** — highlight JPEG artifact inconsistencies as a dedicated pre-processing step
+- **MRZ checksum validation** — programmatically verify machine-readable zone check digits
+- **Template matching** — compare layout against a database of genuine templates per country
+- **Fine-tuned CNN** — train a specialized model (e.g., ManTraNet, Noiseprint) for forgery localization
+- **PDF support** — extract embedded images from PDFs before analysis
+- **Batch processing** — accept ZIP files with multiple IDs for bulk verification
